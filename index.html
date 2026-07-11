@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>LYRIC / SYNC</title>
+<style>
+  :root{
+    --ink:#0B2A4A;
+    --ink-2:#0F3A64;
+    --line:#3D6D99;
+    --line-dim:#25507A;
+    --bright:#8FC1E8;
+    --concrete:#D8D3C6;
+    --concrete-dim:#9A9488;
+    --dim:#7C9BB5;
+    --paper:#EFEBE0;
+    --paper-2:#E2DDCE;
+    --warn:#D9622B;
+    --warn-dim:#8a4420;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--ink);
+    color:var(--concrete);
+    font-family:var(--mono);
+    overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  /* blueprint grid background */
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(var(--line-dim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-dim) 1px, transparent 1px);
+    background-size:28px 28px;
+    opacity:.18;
+    pointer-events:none;
+    z-index:0;
+  }
+  #app{position:relative;z-index:1;height:100vh;height:100dvh;display:flex;flex-direction:column;}
+
+  /* ---------- title block ---------- */
+  header.titleblock{
+    border-bottom:1px solid var(--line);
+    padding:10px 16px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-shrink:0;
+  }
+  header.titleblock .title{
+    font-size:14px;
+    letter-spacing:3px;
+    color:var(--bright);
+    font-weight:700;
+  }
+  header.titleblock .meta{
+    font-size:10px;
+    color:var(--dim);
+    letter-spacing:1px;
+  }
+
+  .screen{flex:1;display:none;min-height:0;flex-direction:column;}
+  .screen.active{display:flex;}
+
+  /* ---------- corner registration marks (signature element) ---------- */
+  .frame{position:relative;flex:1;min-height:0;margin:12px;border:1px solid var(--line);display:flex;flex-direction:column;}
+  .frame::before,.frame::after,.frame .c3,.frame .c4{
+    content:"";position:absolute;width:14px;height:14px;
+    border-color:var(--bright);
+  }
+  .frame::before{top:-1px;left:-1px;border-top:2px solid var(--bright);border-left:2px solid var(--bright);}
+  .frame::after{top:-1px;right:-1px;border-top:2px solid var(--bright);border-right:2px solid var(--bright);}
+  .frame .c3{bottom:-1px;left:-1px;border-bottom:2px solid var(--bright);border-left:2px solid var(--bright);}
+  .frame .c4{bottom:-1px;right:-1px;border-bottom:2px solid var(--bright);border-right:2px solid var(--bright);}
+
+  /* ---------- library screen ---------- */
+  #screen-library .frame{overflow-y:auto;padding:22px;}
+  .drop{
+    border:1px dashed var(--line);
+    padding:26px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .drop.dragover{border-color:var(--bright);background:rgba(143,193,232,.06);}
+  .drop .big{font-size:13px;letter-spacing:1px;color:var(--concrete);}
+  .drop .small{font-size:10px;color:var(--dim);margin-top:6px;}
+  .lib-label{font-size:10px;letter-spacing:2px;color:var(--dim);margin:22px 0 8px;border-bottom:1px solid var(--line-dim);padding-bottom:6px;}
+  .lib-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;border:1px solid var(--line-dim);margin-bottom:6px;
+    cursor:pointer;
+  }
+  .lib-item:hover{border-color:var(--line);background:rgba(143,193,232,.04);}
+  .lib-item .info{overflow:hidden;}
+  .lib-item .t{font-size:12px;color:var(--concrete);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lib-item .a{font-size:10px;color:var(--dim);margin-top:2px;}
+  .lib-item .tag{font-size:9px;letter-spacing:1px;padding:2px 6px;border:1px solid;flex-shrink:0;margin-left:8px;}
+  .tag.synced{color:var(--bright);border-color:var(--bright);}
+  .tag.unsynced{color:var(--warn);border-color:var(--warn);}
+  .lib-item .del{color:var(--dim);font-size:14px;margin-left:10px;flex-shrink:0;padding:2px 6px;}
+  .lib-item .del:hover{color:var(--warn);}
+
+  input[type=file]{display:none;}
+
+  /* ---------- generic button ---------- */
+  .btn{
+    font-family:var(--mono);
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--concrete);
+    padding:8px 14px;
+    font-size:11px;
+    letter-spacing:1px;
+    cursor:pointer;
+  }
+  .btn:hover{border-color:var(--bright);color:var(--bright);}
+  .btn.primary{border-color:var(--bright);color:var(--bright);}
+  .btn.warn{border-color:var(--warn);color:var(--warn);}
+  .btn:disabled{opacity:.3;cursor:default;}
+  .btn:disabled:hover{border-color:var(--line);color:var(--concrete);}
+
+  /* ---------- setup screen ---------- */
+  #screen-setup .frame{padding:22px;overflow-y:auto;}
+  #screen-setup label{font-size:10px;letter-spacing:2px;color:var(--dim);display:block;margin-bottom:6px;}
+  #screen-setup input[type=text]{
+    width:100%;background:transparent;border:1px solid var(--line-dim);color:var(--concrete);
+    font-family:var(--mono);padding:8px;font-size:12px;margin-bottom:16px;
+  }
+  #screen-setup textarea{
+    width:100%;height:200px;background:transparent;border:1px solid var(--line-dim);color:var(--concrete);
+    font-family:var(--mono);padding:8px;font-size:12px;resize:vertical;margin-bottom:16px;line-height:1.6;
+  }
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .hint{font-size:10px;color:var(--dim);margin-bottom:14px;line-height:1.6;}
+
+  /* ---------- sync screen ---------- */
+  #screen-sync .frame{padding:22px;justify-content:space-between;}
+  .sync-progress{font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:14px;}
+  .sync-lines{flex:1;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;gap:6px;}
+  .sync-line{font-size:13px;padding:5px 8px;color:var(--concrete-dim);border-left:2px solid transparent;}
+  .sync-line.done{color:var(--dim);}
+  .sync-line.done::before{content:"✓ ";color:var(--bright);}
+  .sync-line.next{color:var(--bright);border-left-color:var(--bright);background:rgba(143,193,232,.06);font-size:16px;font-weight:700;}
+  .sync-controls{padding-top:16px;border-top:1px solid var(--line-dim);}
+  .tap-zone{
+    margin-top:12px;width:100%;padding:20px;text-align:center;
+    border:1px solid var(--bright);color:var(--bright);font-size:13px;letter-spacing:2px;
+    cursor:pointer;background:rgba(143,193,232,.04);
+  }
+  .tap-zone:active{background:rgba(143,193,232,.15);}
+  .tap-zone.finished{border-color:var(--warn);color:var(--warn);background:rgba(217,98,43,.06);}
+
+  /* ---------- player screen ---------- */
+  #screen-player .frame{padding:0;overflow:hidden;}
+  .player-top{display:flex;align-items:center;gap:14px;padding:18px 22px 10px;flex-shrink:0;}
+  .cover{width:56px;height:56px;flex-shrink:0;border:1px solid var(--line);background:var(--ink-2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--dim);text-align:center;cursor:pointer;}
+  .track-meta{overflow:hidden;flex:1;}
+  .track-meta .tt{font-size:13px;color:var(--concrete);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .track-meta .aa{font-size:10px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .icon-btn{background:none;border:none;color:var(--dim);font-size:13px;cursor:pointer;padding:6px;flex-shrink:0;}
+  .icon-btn:hover{color:var(--bright);}
+
+  .lyrics-view{flex:1;overflow-y:auto;padding:20px 26px;scroll-behavior:smooth;}
+  .lyrics-view::-webkit-scrollbar{width:0;}
+  .lyric-line{font-size:14px;color:var(--concrete-dim);padding:10px 0;cursor:pointer;transition:color .2s, font-size .2s;line-height:1.5;}
+  .lyric-line:hover{color:var(--concrete);}
+  .lyric-line.active{color:var(--bright);font-size:19px;font-weight:700;}
+  .lyric-line.empty{height:14px;}
+  .no-lyrics{color:var(--dim);font-size:11px;text-align:center;padding:40px 10px;letter-spacing:1px;}
+
+  /* ---------- ruler seek bar (signature element) ---------- */
+  .ruler-wrap{padding:6px 22px 0;flex-shrink:0;}
+  .ruler{position:relative;height:26px;cursor:pointer;}
+  .ruler .fill{position:absolute;top:11px;left:0;height:2px;background:var(--bright);}
+  .ruler .track{position:absolute;top:11px;left:0;right:0;height:2px;background:var(--line-dim);}
+  .ruler .ticks{position:absolute;inset:0;display:flex;justify-content:space-between;pointer-events:none;}
+  .ruler .ticks span{width:1px;background:var(--line-dim);height:6px;margin-top:5px;}
+  .ruler .knob{position:absolute;top:6px;width:10px;height:10px;background:var(--bright);border-radius:50%;margin-left:-5px;}
+  .times{display:flex;justify-content:space-between;font-size:9px;color:var(--dim);padding:2px 22px 0;letter-spacing:1px;}
+
+  .transport{display:flex;align-items:center;justify-content:center;gap:22px;padding:10px 22px 18px;flex-shrink:0;}
+  .transport button{background:none;border:none;color:var(--concrete);cursor:pointer;font-family:var(--mono);}
+  .play-btn{font-size:22px;color:var(--bright);border:1px solid var(--bright);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;}
+  .seek-btn{font-size:16px;color:var(--dim);}
+  .seek-btn:hover{color:var(--concrete);}
+  .speed-row{display:flex;justify-content:center;gap:6px;padding-bottom:16px;flex-shrink:0;}
+  .speed-btn{font-size:10px;padding:4px 9px;border:1px solid var(--line-dim);color:var(--dim);background:none;cursor:pointer;font-family:var(--mono);}
+  .speed-btn.active{border-color:var(--bright);color:var(--bright);}
+
+  .bottom-actions{display:flex;justify-content:space-between;padding:10px 22px 16px;border-top:1px solid var(--line-dim);flex-shrink:0;gap:8px;}
+
+  #cover-input{display:none;}
+
+  footer.status{
+    padding:6px 16px;font-size:9px;color:var(--dim);letter-spacing:1px;
+    border-top:1px solid var(--line-dim);flex-shrink:0;
+  }
+
+  @media (max-width:480px){
+    .lyric-line.active{font-size:17px;}
+    .cover{width:48px;height:48px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="titleblock">
+    <span class="title">LYRIC / SYNC</span>
+    <span class="meta" id="header-meta">SCALE 1:1 · OFFLINE</span>
+  </header>
+
+  <!-- ============ LIBRARY ============ -->
+  <section class="screen active" id="screen-library">
+    <div class="frame">
+      <div class="c3"></div><div class="c4"></div>
+      <div class="drop" id="drop-zone">
+        <div class="big">mp3 파일을 드래그하거나 탭해서 불러오기</div>
+        <div class="small">파일명으로 라이브러리와 자동 매칭됩니다</div>
+      </div>
+      <input type="file" id="file-input" accept="audio/*">
+
+      <div class="lib-label">LIBRARY</div>
+      <div id="lib-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ SETUP (LRC 있는지 확인 / 가사 붙여넣기) ============ -->
+  <section class="screen" id="screen-setup">
+    <div class="frame">
+      <div class="c3"></div><div class="c4"></div>
+      <label>TRACK TITLE</label>
+      <input type="text" id="setup-title">
+      <label>ARTIST</label>
+      <input type="text" id="setup-artist">
+
+      <div class="hint">이미 만들어둔 .lrc 파일이 있으면 불러오고, 없으면 가사를 붙여넣은 뒤 탭싱크로 직접 타이밍을 찍어.</div>
+
+      <div class="row">
+        <button class="btn" id="btn-import-lrc">.lrc 불러오기</button>
+        <input type="file" id="lrc-input" accept=".lrc,text/plain">
+      </div>
+
+      <label>가사 (한 줄에 한 소절, 순서대로)</label>
+      <textarea id="setup-lyrics" placeholder="가사를 한 줄씩 붙여넣어&#10;빈 줄도 하나의 마디로 인식돼"></textarea>
+
+      <div class="row">
+        <button class="btn primary" id="btn-start-sync">탭싱크 시작 →</button>
+        <button class="btn" id="btn-back-lib1">← 라이브러리</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAP SYNC ============ -->
+  <section class="screen" id="screen-sync">
+    <div class="frame">
+      <div class="c3"></div><div class="c4"></div>
+      <div class="sync-progress" id="sync-progress">0 / 0 줄 · 재생하면서 스페이스바(또는 아래 버튼)로 타이밍 찍기</div>
+      <div class="sync-lines" id="sync-lines"></div>
+      <div class="sync-controls">
+        <div class="row">
+          <button class="btn" id="sync-play">▶ 재생</button>
+          <button class="btn" id="sync-undo">↺ 되돌리기</button>
+          <button class="btn warn" id="sync-cancel">취소</button>
+        </div>
+        <div class="tap-zone" id="tap-zone">TAP · SPACE</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLAYER ============ -->
+  <section class="screen" id="screen-player">
+    <div class="frame">
+      <div class="c3"></div><div class="c4"></div>
+
+      <div class="player-top">
+        <div class="cover" id="cover-img">COVER</div>
+        <input type="file" id="cover-input" accept="image/*">
+        <div class="track-meta">
+          <div class="tt" id="player-title">—</div>
+          <div class="aa" id="player-artist">—</div>
+        </div>
+        <button class="icon-btn" id="btn-resync" title="다시 싱크">↻</button>
+        <button class="icon-btn" id="btn-export" title="lrc 내보내기">⭳</button>
+        <button class="icon-btn" id="btn-to-lib" title="라이브러리">☰</button>
+      </div>
+
+      <div class="lyrics-view" id="lyrics-view">
+        <div class="no-lyrics">가사 없음</div>
+      </div>
+
+      <div class="ruler-wrap">
+        <div class="ruler" id="ruler">
+          <div class="track"></div>
+          <div class="fill" id="ruler-fill"></div>
+          <div class="ticks" id="ruler-ticks"></div>
+          <div class="knob" id="ruler-knob"></div>
+        </div>
+      </div>
+      <div class="times">
+        <span id="time-cur">0:00</span>
+        <span id="time-dur">0:00</span>
+      </div>
+
+      <div class="transport">
+        <button class="seek-btn" id="btn-back5">−5s</button>
+        <button class="play-btn" id="btn-play">▶</button>
+        <button class="seek-btn" id="btn-fwd5">+5s</button>
+      </div>
+      <div class="speed-row" id="speed-row">
+        <button class="speed-btn" data-speed="0.75">0.75×</button>
+        <button class="speed-btn active" data-speed="1">1×</button>
+        <button class="speed-btn" data-speed="1.25">1.25×</button>
+        <button class="speed-btn" data-speed="1.5">1.5×</button>
+      </div>
+    </div>
+    <footer class="status" id="player-status">—</footer>
+  </section>
+
+  <audio id="audio"></audio>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const LIB_KEY = "lyricSync_library_v1";
+  let library = {};
+  try{ library = JSON.parse(localStorage.getItem(LIB_KEY) || "{}"); }catch(e){ library = {}; }
+  function saveLibrary(){ localStorage.setItem(LIB_KEY, JSON.stringify(library)); }
+
+  const audio = document.getElementById("audio");
+  let currentKey = null;      // filename used as library key
+  let currentObjectURL = null;
+  let currentLines = [];      // [{time, text}]
+  let activeIndex = -1;
+
+  // -------- screen switching --------
+  function showScreen(id){
+    document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  // ================= LIBRARY =================
+  function renderLibrary(){
+    const list = document.getElementById("lib-list");
+    const keys = Object.keys(library);
+    if(keys.length === 0){
+      list.innerHTML = '<div style="font-size:10px;color:var(--dim);">아직 저장된 곡이 없어</div>';
+      return;
+    }
+    list.innerHTML = "";
+    keys.forEach(key=>{
+      const song = library[key];
+      const item = document.createElement("div");
+      item.className = "lib-item";
+      item.innerHTML = `
+        <div class="info">
+          <div class="t">${escapeHTML(song.title || key)}</div>
+          <div class="a">${escapeHTML(song.artist || key)}</div>
+        </div>
+        <span class="tag ${song.hasSync ? 'synced':'unsynced'}">${song.hasSync ? 'SYNCED':'NO LRC'}</span>
+        <span class="del" data-key="${escapeAttr(key)}">✕</span>
+      `;
+      item.addEventListener("click", (e)=>{
+        if(e.target.classList.contains("del")) return;
+        promptReselect(key);
+      });
+      list.appendChild(item);
+    });
+    list.querySelectorAll(".del").forEach(el=>{
+      el.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        const key = el.getAttribute("data-key");
+        if(confirm(`"${library[key].title || key}" 라이브러리에서 삭제할까?`)){
+          delete library[key];
+          saveLibrary();
+          renderLibrary();
+        }
+      });
+    });
+  }
+  function escapeHTML(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function escapeAttr(s){ return escapeHTML(s); }
+
+  function promptReselect(key){
+    // 저장된 파일명과 같은 mp3를 다시 선택하도록 유도
+    alert(`"${library[key].title || key}" 을(를) 재생하려면\n같은 mp3 파일을 다시 선택해줘.\n(파일명: ${key})`);
+    document.getElementById("file-input").click();
+  }
+
+  // drag & drop
+  const dropZone = document.getElementById("drop-zone");
+  const fileInput = document.getElementById("file-input");
+  dropZone.addEventListener("click", ()=> fileInput.click());
+  ["dragover","dragenter"].forEach(ev=>{
+    dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.add("dragover"); });
+  });
+  ["dragleave","drop"].forEach(ev=>{
+    dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.remove("dragover"); });
+  });
+  dropZone.addEventListener("drop", e=>{
+    const f = e.dataTransfer.files[0];
+    if(f) handleFile(f);
+  });
+  fileInput.addEventListener("change", e=>{
+    const f = e.target.files[0];
+    if(f) handleFile(f);
+  });
+
+  function handleFile(file){
+    currentKey = file.name;
+    if(currentObjectURL) URL.revokeObjectURL(currentObjectURL);
+    currentObjectURL = URL.createObjectURL(file);
+    audio.src = currentObjectURL;
+
+    if(!library[currentKey]){
+      library[currentKey] = {
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        artist: "",
+        lrcLines: [],
+        rawLyrics: "",
+        hasSync: false,
+        cover: null
+      };
+      saveLibrary();
+    }
+
+    const song = library[currentKey];
+    if(song.hasSync && song.lrcLines.length){
+      openPlayer();
+    }else{
+      openSetup();
+    }
+  }
+
+  // ================= SETUP =================
+  function openSetup(){
+    const song = library[currentKey];
+    document.getElementById("setup-title").value = song.title || "";
+    document.getElementById("setup-artist").value = song.artist || "";
+    document.getElementById("setup-lyrics").value = song.rawLyrics || "";
+    showScreen("screen-setup");
+  }
+  document.getElementById("btn-back-lib1").addEventListener("click", ()=>{
+    renderLibrary();
+    showScreen("screen-library");
+  });
+  document.getElementById("setup-title").addEventListener("input", e=>{
+    if(currentKey) library[currentKey].title = e.target.value;
+  });
+  document.getElementById("setup-artist").addEventListener("input", e=>{
+    if(currentKey) library[currentKey].artist = e.target.value;
+  });
+
+  // import .lrc directly (skip tap-sync)
+  document.getElementById("btn-import-lrc").addEventListener("click", ()=>{
+    document.getElementById("lrc-input").click();
+  });
+  document.getElementById("lrc-input").addEventListener("change", e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const parsed = parseLRC(reader.result);
+      const meta = parseLRCMeta(reader.result);
+      const song = library[currentKey];
+      song.lrcLines = parsed;
+      song.hasSync = parsed.length > 0;
+      if(meta.title && !song.title) song.title = meta.title;
+      if(meta.artist && !song.artist) song.artist = meta.artist;
+      saveLibrary();
+      if(song.hasSync){
+        openPlayer();
+      }else{
+        alert("이 파일에서 타임싱크된 가사를 찾지 못했어. 가사를 붙여넣고 탭싱크로 진행해줘.");
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = "";
+  });
+
+  document.getElementById("btn-start-sync").addEventListener("click", ()=>{
+    const text = document.getElementById("setup-lyrics").value;
+    const lines = text.split("\n").map(l=>l.trim());
+    // 완전히 빈 문자열만 있는 케이스 방지
+    if(lines.filter(l=>l.length>0).length === 0){
+      alert("가사를 먼저 붙여넣어줘.");
+      return;
+    }
+    library[currentKey].rawLyrics = text;
+    saveLibrary();
+    startTapSync(lines);
+  });
+
+  // ================= LRC parsing / building =================
+  function parseLRC(text){
+    const out = [];
+    const lines = text.split(/\r?\n/);
+    // 시간 단위(hh:) 선택적으로 지원: [mm:ss.xx] 또는 [hh:mm:ss.xx] 둘 다 인식
+    const tagRe = /\[(?:(\d{1,2}):)?(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\]/g;
+    lines.forEach(line=>{
+      const tags = [...line.matchAll(tagRe)];
+      if(tags.length === 0) return;
+      const textPart = line.replace(tagRe, "").trim();
+      tags.forEach(m=>{
+        const hasHour = m[1] !== undefined;
+        const hour = hasHour ? parseInt(m[1],10) : 0;
+        const min = parseInt(m[2],10);
+        const sec = parseFloat(m[3]);
+        out.push({ time: hour*3600 + min*60 + sec, text: textPart });
+      });
+    });
+    out.sort((a,b)=>a.time-b.time);
+    return out;
+  }
+  function parseLRCMeta(text){
+    const meta = {};
+    const ti = text.match(/\[ti:(.*)\]/i);
+    const ar = text.match(/\[ar:(.*)\]/i);
+    if(ti) meta.title = ti[1].trim();
+    if(ar) meta.artist = ar[1].trim();
+    return meta;
+  }
+  function formatLRCTime(t){
+    const m = Math.floor(t/60);
+    const s = (t - m*60);
+    return String(m).padStart(2,"0") + ":" + s.toFixed(2).padStart(5,"0");
+  }
+  function buildLRC(song){
+    let out = "";
+    if(song.title) out += `[ti:${song.title}]\n`;
+    if(song.artist) out += `[ar:${song.artist}]\n`;
+    song.lrcLines.forEach(l=>{
+      out += `[${formatLRCTime(l.time)}]${l.text}\n`;
+    });
+    return out;
+  }
+
+  // ================= TAP SYNC =================
+  let syncLines = [];
+  let syncTimes = [];
+  let syncIndex = 0;
+
+  function startTapSync(lines){
+    syncLines = lines;
+    syncTimes = new Array(lines.length).fill(null);
+    syncIndex = 0;
+    audio.currentTime = 0;
+    audio.playbackRate = 1;
+    renderSyncLines();
+    showScreen("screen-sync");
+  }
+
+  function renderSyncLines(){
+    const container = document.getElementById("sync-lines");
+    container.innerHTML = "";
+    // show a window around current index for performance/focus
+    const start = Math.max(0, syncIndex - 3);
+    const end = Math.min(syncLines.length, syncIndex + 5);
+    for(let i=start; i<end; i++){
+      const div = document.createElement("div");
+      const text = syncLines[i].length ? syncLines[i] : "♪";
+      div.textContent = text;
+      div.className = "sync-line" + (i < syncIndex ? " done" : "") + (i === syncIndex ? " next" : "");
+      container.appendChild(div);
+    }
+    document.getElementById("sync-progress").textContent =
+      `${syncIndex} / ${syncLines.length} 줄 · 재생하면서 스페이스바(또는 아래 버튼)로 타이밍 찍기`;
+
+    const tapZone = document.getElementById("tap-zone");
+    if(syncIndex >= syncLines.length){
+      tapZone.textContent = "완료 · 저장하기";
+      tapZone.classList.add("finished");
+    }else{
+      tapZone.textContent = "TAP · SPACE";
+      tapZone.classList.remove("finished");
+    }
+  }
+
+  function doTap(){
+    if(syncIndex < syncLines.length){
+      syncTimes[syncIndex] = audio.currentTime;
+      syncIndex++;
+      renderSyncLines();
+    }else{
+      finishSync();
+    }
+  }
+  function undoTap(){
+    if(syncIndex > 0){
+      syncIndex--;
+      syncTimes[syncIndex] = null;
+      renderSyncLines();
+    }
+  }
+  function finishSync(){
+    const lrcLines = syncLines.map((text,i)=>({ time: syncTimes[i] ?? 0, text }));
+    lrcLines.sort((a,b)=>a.time-b.time);
+    const song = library[currentKey];
+    song.lrcLines = lrcLines;
+    song.hasSync = true;
+    saveLibrary();
+    audio.pause();
+    openPlayer();
+  }
+
+  document.getElementById("tap-zone").addEventListener("click", doTap);
+  document.getElementById("sync-undo").addEventListener("click", undoTap);
+  document.getElementById("sync-play").addEventListener("click", ()=>{
+    if(audio.paused){ audio.play(); document.getElementById("sync-play").textContent = "❚❚ 일시정지"; }
+    else{ audio.pause(); document.getElementById("sync-play").textContent = "▶ 재생"; }
+  });
+  document.getElementById("sync-cancel").addEventListener("click", ()=>{
+    audio.pause();
+    showScreen("screen-library");
+    renderLibrary();
+  });
+  window.addEventListener("keydown", e=>{
+    if(document.getElementById("screen-sync").classList.contains("active")){
+      if(e.code === "Space"){ e.preventDefault(); doTap(); }
+      if(e.code === "Backspace"){ e.preventDefault(); undoTap(); }
+    }else if(document.getElementById("screen-player").classList.contains("active")){
+      if(e.code === "Space" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA"){
+        e.preventDefault();
+        togglePlay();
+      }
+    }
+  });
+
+  // ================= PLAYER =================
+  function openPlayer(){
+    const song = library[currentKey];
+    currentLines = song.lrcLines || [];
+    activeIndex = -1;
+    document.getElementById("player-title").textContent = song.title || currentKey;
+    document.getElementById("player-artist").textContent = song.artist || "";
+    document.getElementById("player-status").textContent = currentKey;
+    const coverEl = document.getElementById("cover-img");
+    if(song.cover){
+      coverEl.style.backgroundImage = `url(${song.cover})`;
+      coverEl.textContent = "";
+    }else{
+      coverEl.style.backgroundImage = "";
+      coverEl.textContent = "COVER";
+    }
+    renderLyricsView();
+    buildRulerTicks();
+    audio.currentTime = 0;
+    audio.playbackRate = 1;
+    document.querySelectorAll(".speed-btn").forEach(b=>b.classList.toggle("active", b.dataset.speed==="1"));
+    showScreen("screen-player");
+  }
+
+  function renderLyricsView(){
+    const view = document.getElementById("lyrics-view");
+    view.innerHTML = "";
+    if(!currentLines.length){
+      view.innerHTML = '<div class="no-lyrics">가사 없음 · ↻ 눌러서 싱크 추가</div>';
+      return;
+    }
+    currentLines.forEach((line, i)=>{
+      const div = document.createElement("div");
+      div.className = "lyric-line" + (line.text.length===0 ? " empty":"");
+      div.textContent = line.text.length ? line.text : "";
+      div.dataset.idx = i;
+      div.addEventListener("click", ()=>{
+        audio.currentTime = line.time;
+        if(audio.paused) audio.play();
+      });
+      view.appendChild(div);
+    });
+  }
+
+  audio.addEventListener("timeupdate", ()=>{
+    updateRuler();
+    if(!currentLines.length) return;
+    let idx = -1;
+    for(let i=0;i<currentLines.length;i++){
+      if(currentLines[i].time <= audio.currentTime) idx = i; else break;
+    }
+    if(idx !== activeIndex){
+      activeIndex = idx;
+      document.querySelectorAll(".lyric-line").forEach(el=>el.classList.remove("active"));
+      if(idx >= 0){
+        const el = document.querySelector(`.lyric-line[data-idx="${idx}"]`);
+        if(el){
+          el.classList.add("active");
+          el.scrollIntoView({behavior:"smooth", block:"center"});
+        }
+      }
+    }
+  });
+
+  audio.addEventListener("loadedmetadata", ()=>{
+    document.getElementById("time-dur").textContent = formatClock(audio.duration);
+    buildRulerTicks();
+  });
+  audio.addEventListener("play", ()=>{ document.getElementById("btn-play").textContent = "❚❚"; });
+  audio.addEventListener("pause", ()=>{ document.getElementById("btn-play").textContent = "▶"; });
+
+  function formatClock(t){
+    if(!isFinite(t)) return "0:00";
+    const m = Math.floor(t/60);
+    const s = Math.floor(t%60);
+    return m + ":" + String(s).padStart(2,"0");
+  }
+
+  function togglePlay(){
+    if(audio.paused) audio.play(); else audio.pause();
+  }
+  document.getElementById("btn-play").addEventListener("click", togglePlay);
+  document.getElementById("btn-back5").addEventListener("click", ()=>{ audio.currentTime = Math.max(0, audio.currentTime-5); });
+  document.getElementById("btn-fwd5").addEventListener("click", ()=>{ audio.currentTime = Math.min(audio.duration||0, audio.currentTime+5); });
+
+  document.querySelectorAll(".speed-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const speed = parseFloat(btn.dataset.speed);
+      audio.playbackRate = speed;
+      document.querySelectorAll(".speed-btn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // ruler / seek bar
+  function buildRulerTicks(){
+    const ticks = document.getElementById("ruler-ticks");
+    ticks.innerHTML = "";
+    const count = 20;
+    for(let i=0;i<=count;i++){
+      const s = document.createElement("span");
+      if(i % 5 !== 0) s.style.opacity = "0.5";
+      ticks.appendChild(s);
+    }
+  }
+  function updateRuler(){
+    const dur = audio.duration || 0;
+    const pct = dur ? (audio.currentTime/dur)*100 : 0;
+    document.getElementById("ruler-fill").style.width = pct + "%";
+    document.getElementById("ruler-knob").style.left = pct + "%";
+    document.getElementById("time-cur").textContent = formatClock(audio.currentTime);
+  }
+  const ruler = document.getElementById("ruler");
+  function seekFromEvent(e){
+    const rect = ruler.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const pct = Math.min(1, Math.max(0, (clientX-rect.left)/rect.width));
+    if(audio.duration) audio.currentTime = pct * audio.duration;
+  }
+  ruler.addEventListener("click", seekFromEvent);
+  let dragging = false;
+  ruler.addEventListener("mousedown", e=>{ dragging = true; seekFromEvent(e); });
+  window.addEventListener("mousemove", e=>{ if(dragging) seekFromEvent(e); });
+  window.addEventListener("mouseup", ()=>{ dragging = false; });
+
+  // cover upload
+  document.getElementById("cover-img").addEventListener("click", ()=>{
+    document.getElementById("cover-input").click();
+  });
+  document.getElementById("cover-input").addEventListener("change", e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      img.onload = ()=>{
+        const canvas = document.createElement("canvas");
+        const size = 300;
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const scale = Math.max(size/img.width, size/img.height);
+        const w = img.width*scale, h = img.height*scale;
+        ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+        library[currentKey].cover = dataUrl;
+        saveLibrary();
+        const coverEl = document.getElementById("cover-img");
+        coverEl.style.backgroundImage = `url(${dataUrl})`;
+        coverEl.textContent = "";
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(f);
+    e.target.value = "";
+  });
+
+  // resync / export / back
+  document.getElementById("btn-resync").addEventListener("click", ()=>{
+    audio.pause();
+    openSetup();
+  });
+  document.getElementById("btn-export").addEventListener("click", ()=>{
+    const song = library[currentKey];
+    if(!song.lrcLines.length){ alert("내보낼 가사가 없어."); return; }
+    const lrcText = buildLRC(song);
+    const blob = new Blob([lrcText], {type:"text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (song.title || currentKey) + ".lrc";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("btn-to-lib").addEventListener("click", ()=>{
+    audio.pause();
+    renderLibrary();
+    showScreen("screen-library");
+  });
+
+  renderLibrary();
+})();
+</script>
+</body>
+</html>
